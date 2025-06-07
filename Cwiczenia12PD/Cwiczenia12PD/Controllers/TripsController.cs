@@ -1,6 +1,6 @@
-﻿using Cwiczenia12PD.Data;
+﻿using Cwiczenia12PD.Models.DTOs;
+using Cwiczenia12PD.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cwiczenia12PD.Controllers;
 
@@ -8,35 +8,35 @@ namespace Cwiczenia12PD.Controllers;
 [Route("api/[controller]")]
 public class TripsController : ControllerBase
 {
-    private readonly ApbdContext _context;
+    private readonly IDbService _service;
 
-    public TripsController(ApbdContext context)
+    public TripsController(IDbService service)
     {
-        _context = context;
+        _service = service;
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetTrips()
+    public async Task<IActionResult> GetTrips([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        var trips = await _context.Trips
-            .OrderByDescending(t => t.DateFrom)
-            .Select(t => new
-            {
-                t.Name,
-                t.Description,
-                t.DateFrom,
-                t.DateTo,
-                t.MaxPeople,
-                Countries = t.IdCountries.Select(c => new { c.Name }),
-                Clients = t.ClientTrips.Select(ct => new
-                {
-                    ct.IdClientNavigation.FirstName,
-                    ct.IdClientNavigation.LastName
-                })
-            })
-            .ToListAsync();
-
-        return Ok(trips);
+        var result = await _service.GetTripsAsync(page, pageSize);
+        return Ok(result);
     }
-
+    
+    [HttpPost("{idTrip}/clients")]
+    public async Task<IActionResult> PostClient(int idTrip, [FromBody] AssignClientToTripDto dto)
+    {
+        try
+        {
+            var response = await _service.AssignClientToTripAsync(idTrip, dto);
+            return CreatedAtAction(nameof(GetTrips), new { idTrip }, response);
+        }
+        catch (KeyNotFoundException knf)
+        {
+            return NotFound(new { message = knf.Message });
+        }
+        catch (InvalidOperationException ioe)
+        {
+            return BadRequest(new { message = ioe.Message });
+        }
+    }
 }
